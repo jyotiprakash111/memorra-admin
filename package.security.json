@@ -1,0 +1,44 @@
+{
+  "name": "memorra-admin-panel",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "security:check": "npm audit",
+    "security:fix": "npm audit fix",
+    "type-check": "tsc --noEmit",
+    "security:validate": "node scripts/validate-security.js"
+  },
+  "dependencies": {
+    "@vercel/analytics": "^1.4.0",
+    "framer-motion": "^11.0.3",
+    "lucide-react": "^0.447.0",
+    "next": "16.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.4.1",
+    "recharts": "^3.8.1",
+    "crypto": "^1.0.3",
+    "jose": "^5.0.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.14.8",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^4.0.0-alpha.17",
+    "typescript": "^5.5.2"
+  },
+  "engines": {
+    "node": ">=18.16.0",
+    "npm": ">=9.0.0"
+  }
+}

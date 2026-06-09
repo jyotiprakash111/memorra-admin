@@ -1,0 +1,48 @@
+{
+  "name": "memorra-admin-panel",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "security:validate": "node scripts/validate-security.js",
+    "seed:demo": "node scripts/seed-demo-users.js",
+    "seed:funeral-homes": "node scripts/seed-funeral-homes.js",
+    "creds": "node scripts/show-credentials.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "api:scaffold": "node scripts/scaffold-routes.mjs",
+    "redis:up": "docker compose -f docker-compose.redis.yml up -d",
+    "redis:down": "docker compose -f docker-compose.redis.yml down",
+    "redis:logs": "docker compose -f docker-compose.redis.yml logs -f"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "@upstash/redis": "^1.34.3",
+    "@vercel/analytics": "^1.4.0",
+    "framer-motion": "^11.0.3",
+    "ioredis": "^5.4.1",
+    "lucide-react": "^0.447.0",
+    "next": "16.1.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hot-toast": "^2.4.1",
+    "recharts": "^3.8.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^20.14.8",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "postcss": "^8.4.38",
+    "prisma": "^6.0.0",
+    "tailwindcss": "^4.0.0-alpha.17",
+    "typescript": "^5.5.2"
+  }
+}

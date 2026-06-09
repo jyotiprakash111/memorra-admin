@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Memorra Redis Guide</title>
+  <style>
+    @page { margin: 20mm 18mm; size: A4; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      font-size: 11pt;
+      line-height: 1.5;
+      color: #1a1a2e;
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 { font-size: 22pt; color: #0d5c4b; border-bottom: 3px solid #0d5c4b; padding-bottom: 8px; margin-top: 0; }
+    h2 { font-size: 14pt; color: #0d5c4b; margin-top: 28px; page-break-after: avoid; }
+    h3 { font-size: 12pt; color: #333; margin-top: 18px; }
+    .meta { color: #666; font-size: 10pt; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 10pt; }
+    th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; }
+    th { background: #e8f5f1; color: #0d5c4b; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    pre, code {
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 9pt;
+      background: #f4f4f8;
+      border-radius: 4px;
+    }
+    pre { padding: 12px; overflow-x: auto; border: 1px solid #ddd; page-break-inside: avoid; }
+    code { padding: 2px 5px; }
+    .diagram {
+      font-family: monospace;
+      font-size: 9pt;
+      background: #f0f7f5;
+      padding: 16px;
+      border-left: 4px solid #0d5c4b;
+      white-space: pre;
+      line-height: 1.35;
+    }
+    ul { padding-left: 20px; }
+    li { margin: 4px 0; }
+    .summary-box {
+      background: #e8f5f1;
+      border: 1px solid #0d5c4b;
+      padding: 14px 18px;
+      border-radius: 6px;
+      margin-top: 20px;
+    }
+    footer { margin-top: 40px; font-size: 9pt; color: #888; text-align: center; border-top: 1px solid #ddd; padding-top: 12px; }
+  </style>
+</head>
+<body>
+
+<h1>Memorra Redis Guide</h1>
+<p class="meta"><strong>Implementation, benefits, and setup</strong><br>Memorra Admin Panel + API · Version 1.0 · May 2026</p>
+
+<h2>1. Overview</h2>
+<p>Redis is a <strong>fast in-memory data store</strong> used by the Memorra backend for rate limiting, caching, and optional sessions. It sits alongside <strong>PostgreSQL (Neon)</strong> — Postgres holds permanent data; Redis holds short-lived or high-frequency data.</p>
+<p>The backend lives in <code>memorra-adminpanel</code> (Next.js). Mobile and admin clients call <code>/api/v1/*</code>.</p>
+
+<h2>2. Benefits for Memorra</h2>
+<table>
+  <tr><th>Benefit</th><th>Why it matters</th></tr>
+  <tr><td>Faster responses</td><td>Cache funeral music, homes, FAQs, CMS theme</td></tr>
+  <tr><td>Shared across servers</td><td>Vercel serverless instances share one Redis</td></tr>
+  <tr><td>Rate limiting</td><td>Protect admin login and mobile APIs</td></tr>
+  <tr><td>Less database load</td><td>Neon for durable data; Redis for hot reads</td></tr>
+  <tr><td>Sessions / revocation</td><td>Logout-everywhere, token blocklists</td></tr>
+  <tr><td>Future real-time</td><td>Pub/sub for live streams, notifications</td></tr>
+</table>
+<p><strong>Without Redis:</strong> in-memory fallback works in dev on one machine — not for production at scale.</p>
+
+<h2>3. Architecture</h2>
+<div class="diagram">┌─────────────┐     ┌─────────────┐
+│ Mobile app  │     │ Admin panel │
+└──────┬──────┘     └──────┬──────┘
+       └─────────┬─────────┘
+                 ▼
+       ┌─────────────────────┐
+       │  Next.js API /api/v1│
+       └─────────┬───────────┘
+       ┌─────────┴─────────┐
+       ▼                   ▼
+┌─────────────┐     ┌─────────────┐
+│   Redis     │     │  Postgres   │
+│ cache/rate  │     │  (Prisma)   │
+└─────────────┘     └─────────────┘</div>
+
+<h2>4. Project structure</h2>
+<pre>memorra-adminpanel/lib/redis/
+├── client.ts       → Upstash (prod) or ioredis (local)
+├── rate-limit.ts   → Distributed limits + fallback
+├── cache.ts        → JSON cache with TTL
+├── session.ts      → Optional sessions
+└── index.ts</pre>
+
+<h3>Provider priority</h3>
+<ol>
+  <li><code>UPSTASH_REDIS_REST_URL</code> + token (Vercel)</li>
+  <li><code>REDIS_URL=redis://localhost:6379</code> (Docker)</li>
+  <li>Neither → in-memory fallback</li>
+</ol>
+
+<h3>Key prefixes</h3>
+<table>
+  <tr><th>Prefix</th><th>Use</th></tr>
+  <tr><td><code>memorra:ratelimit:*</code></td><td>Rate limiting</td></tr>
+  <tr><td><code>memorra:session:*</code></td><td>Sessions</td></tr>
+  <tr><td><code>memorra:*</code></td><td>General cache</td></tr>
+</table>
+
+<h2>5. Setup</h2>
+<h3>5.1 Local (Docker)</h3>
+<pre>cd memorra-adminpanel
+npm run redis:up</pre>
+<p>Add to <code>.env</code>: <code>REDIS_URL=redis://localhost:6379</code></p>
+<p>Verify: <code>GET http://localhost:3000/api/v1/health</code></p>
+
+<h3>5.2 Production (Upstash)</h3>
+<ol>
+  <li>Create database at console.upstash.com</li>
+  <li>Set <code>UPSTASH_REDIS_REST_URL</code> and <code>UPSTASH_REDIS_REST_TOKEN</code> on Vercel</li>
+</ol>
+
+<h2>6. Code usage</h2>
+<h3>Rate limiting</h3>
+<pre>import { checkRateLimit } from "@/lib/redis"
+
+const result = await checkRateLimit(`login:${ip}`, {
+  maxRequests: 10,
+  windowSeconds: 900,
+})
+if (!result.allowed) { /* return 429 */ }</pre>
+
+<h3>Caching</h3>
+<pre>import { cacheKey, cacheGet, cacheSet } from "@/lib/redis"
+
+const key = cacheKey("catalog", "funeral-music")
+const cached = await cacheGet(key)
+if (cached) return cached
+const data = await prisma.funeralMusic.findMany(...)
+await cacheSet(key, data, 300)</pre>
+
+<h2>7. Implementation roadmap</h2>
+<table>
+  <tr><th>Priority</th><th>Feature</th><th>Redis use</th></tr>
+  <tr><td>1</td><td>Mobile auth</td><td>Rate limit login/register</td></tr>
+  <tr><td>2</td><td>Funeral catalog APIs</td><td>Cache + invalidate on admin save</td></tr>
+  <tr><td>3</td><td>CMS / feature flags</td><td>Short TTL cache</td></tr>
+  <tr><td>4</td><td>Wishlist options</td><td>Cache dropdowns</td></tr>
+  <tr><td>5</td><td>Logout</td><td>Session delete / blocklist</td></tr>
+</table>
+
+<h2>8. npm scripts</h2>
+<table>
+  <tr><th>Command</th><th>Description</th></tr>
+  <tr><td><code>npm run redis:up</code></td><td>Start local Redis</td></tr>
+  <tr><td><code>npm run redis:down</code></td><td>Stop Redis</td></tr>
+  <tr><td><code>npm run dev</code></td><td>Start admin + API</td></tr>
+</table>
+
+<div class="summary-box">
+  <h3 style="margin-top:0">Summary</h3>
+  <ul>
+    <li><strong>Use for:</strong> rate limits, cache, sessions</li>
+    <li><strong>Local:</strong> <code>npm run redis:up</code> + <code>REDIS_URL</code></li>
+    <li><strong>Production:</strong> Upstash on Vercel</li>
+    <li><strong>Done:</strong> client, cache, rate limit, admin login protection, health check</li>
+  </ul>
+</div>
+
+<footer>Memorra · Internal documentation · memorra-adminpanel/docs/</footer>
+
+</body>
+</html>

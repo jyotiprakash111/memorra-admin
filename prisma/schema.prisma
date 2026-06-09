@@ -1,0 +1,996 @@
+// Memorra — PostgreSQL schema for mobile app + admin panel
+// Docs: memorra-adminpanel/docs/DATABASE_SCHEMA.md
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  SUPPORT
+  FINANCE
+}
+
+enum UserRole {
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+enum SubscriptionPlan {
+  BASIC
+  PREMIUM
+}
+
+enum ContentStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  HIDDEN
+  ARCHIVED
+}
+
+enum PostCategory {
+  MEMORIAL
+  GENERAL
+  TRIBUTE
+  LEGACY
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum StoryStatus {
+  ACTIVE
+  EXPIRED
+  REMOVED
+}
+
+enum LiveStreamStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum VideoMessageStatus {
+  UPLOADED
+  PROCESSING
+  READY
+  ARCHIVED
+  HIDDEN
+}
+
+enum MusicCategory {
+  HYMN
+  CLASSICAL
+  CONTEMPORARY
+  TRADITIONAL
+  CUSTOM
+}
+
+enum WishlistOptionCategory {
+  FUNERAL_TYPE
+  SERVICE_TYPE
+  DRESS_CODE
+  LOCATION
+  CUSTOM
+}
+
+enum CatalogSelectionType {
+  FUNERAL_HOME
+  CEMETERY
+  CHURCH
+  FLOWER
+  CASKET
+  URN
+  MUSIC
+  OBITUARY_TEMPLATE
+}
+
+enum WalletTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  GIFT_SENT
+  GIFT_RECEIVED
+  PURCHASE
+  REFUND
+  ADJUSTMENT
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TrustedContactStatus {
+  PENDING
+  VERIFIED
+  REVOKED
+}
+
+enum ReportTargetType {
+  POST
+  COMMENT
+  USER
+  STORY
+  VIDEO_MESSAGE
+  MESSAGE
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+}
+
+enum FeedbackStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum NotificationType {
+  SYSTEM
+  MESSAGE
+  GIFT
+  MEMORIAL
+  MODERATION
+  TRUSTED_CONTACT
+}
+
+enum LegalDocumentType {
+  TERMS
+  PRIVACY
+  WISHES
+  POWER_OF_ATTORNEY
+  OTHER
+}
+
+enum DigitalLegacyType {
+  PHOTO
+  VIDEO
+  DOCUMENT
+  AUDIO
+  LINK
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+  OUT_OF_STOCK
+}
+
+// =============================================================================
+// ADMIN (panel staff — separate from mobile users)
+// =============================================================================
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  role         AdminRole @default(ADMIN)
+  permissions  String[]  @default([])
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs       AuditLog[]
+  resolvedReports Report[]   @relation("ReportResolvedBy")
+  moderatedPosts  Post[]     @relation("PostModeratedBy")
+}
+
+model AuditLog {
+  id         String     @id @default(cuid())
+  adminId    String?
+  admin      AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  action     String
+  resource   String
+  resourceId String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime   @default(now())
+
+  @@index([adminId])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+}
+
+// =============================================================================
+// MOBILE USERS & PROFILES
+// =============================================================================
+
+model User {
+  id           String           @id @default(cuid())
+  email        String           @unique
+  passwordHash String?
+  name         String?
+  avatarUrl    String?
+  phone        String?
+  bio          String?
+  role         UserRole         @default(USER)
+  status       UserStatus       @default(ACTIVE)
+  plan         SubscriptionPlan @default(BASIC)
+  dateOfBirth  DateTime?
+  joinedAt     DateTime         @default(now())
+  lastLoginAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  // Auth tokens (mobile)
+  refreshTokens RefreshToken[]
+
+  // Social
+  posts       Post[]
+  postLikes   PostLike[]
+  comments    Comment[]
+  stories     Story[]
+  liveStreams LiveStream[]
+  followers   Follow[]     @relation("Following")
+  following   Follow[]     @relation("Follower")
+
+  // Memorial & funeral
+  memorialWishlist  MemorialWishlist?
+  catalogSelections UserCatalogSelection[]
+  videoMessages     VideoMessage[]
+  obituaries        Obituary[]
+  funeralMusicPicks UserFuneralMusic[]
+
+  // Commerce
+  wallet          Wallet?
+  giftsSent       Gift[]                @relation("GiftSender")
+  giftsReceived   Gift[]                @relation("GiftRecipient")
+  productWishlist ProductWishlistItem[]
+
+  // Trust & messaging
+  trustedContacts TrustedContact[]
+  trustedFor      TrustedContact[]          @relation("TrustedContactUser")
+  conversations   ConversationParticipant[]
+  messagesSent    Message[]
+
+  // Safety
+  reportsFiled Report[]   @relation("ReportReporter")
+  feedback     Feedback[]
+
+  // Legacy
+  digitalLegacyAssets DigitalLegacyAsset[]
+
+  // Parent / child
+  parentLinks ParentChildLink[]    @relation("ChildUser")
+  childLinks  ParentChildLink[]    @relation("ParentUser")
+  childSafety ChildSafetySettings?
+
+  notifications Notification[]
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@index([followingId])
+}
+
+// =============================================================================
+// PARENT / CHILD CONTROLS
+// =============================================================================
+
+model ParentChildLink {
+  id        String   @id @default(cuid())
+  parentId  String
+  childId   String
+  parent    User     @relation("ParentUser", fields: [parentId], references: [id], onDelete: Cascade)
+  child     User     @relation("ChildUser", fields: [childId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([parentId, childId])
+  @@index([childId])
+}
+
+model ChildSafetySettings {
+  id                      String   @id @default(cuid())
+  childId                 String   @unique
+  child                   User     @relation(fields: [childId], references: [id], onDelete: Cascade)
+  contentVisibility       Json? // filters by content type
+  discoveryRestrictions   Json?
+  postingRestrictions     Json?
+  interactionRestrictions Json?
+  safetyReporting         Json?
+  updatedAt               DateTime @updatedAt
+}
+
+// =============================================================================
+// SOCIAL — POSTS, STORIES, LIVE
+// =============================================================================
+
+model Post {
+  id            String        @id @default(cuid())
+  authorId      String
+  author        User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content       String?
+  category      PostCategory  @default(MEMORIAL)
+  status        ContentStatus @default(PENDING)
+  isFeatured    Boolean       @default(false)
+  likeCount     Int           @default(0)
+  commentCount  Int           @default(0)
+  shareCount    Int           @default(0)
+  moderatedById String?
+  moderatedBy   AdminUser?    @relation("PostModeratedBy", fields: [moderatedById], references: [id], onDelete: SetNull)
+  moderatedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  media    PostMedia[]
+  likes    PostLike[]
+  comments Comment[]
+  reports  Report[]
+
+  @@index([authorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PostMedia {
+  id        String    @id @default(cuid())
+  postId    String
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  url       String
+  type      MediaType @default(IMAGE)
+  sortOrder Int       @default(0)
+
+  @@index([postId])
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId])
+}
+
+model Comment {
+  id        String        @id @default(cuid())
+  postId    String
+  authorId  String
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content   String
+  status    ContentStatus @default(APPROVED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([postId])
+  @@index([authorId])
+}
+
+model Story {
+  id        String      @id @default(cuid())
+  authorId  String
+  author    User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  mediaUrl  String
+  mediaType MediaType
+  caption   String?
+  status    StoryStatus @default(ACTIVE)
+  expiresAt DateTime?
+  createdAt DateTime    @default(now())
+
+  @@index([authorId])
+  @@index([expiresAt])
+}
+
+model LiveStream {
+  id           String           @id @default(cuid())
+  hostId       String
+  host         User             @relation(fields: [hostId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  streamUrl    String?
+  thumbnailUrl String?
+  status       LiveStreamStatus @default(SCHEDULED)
+  scheduledAt  DateTime?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime         @default(now())
+
+  @@index([hostId])
+  @@index([status])
+}
+
+// =============================================================================
+// MEMORIAL WISHLIST (mobile) + CMS OPTIONS (admin)
+// =============================================================================
+
+model WishlistOption {
+  id        String                 @id @default(cuid())
+  category  WishlistOptionCategory
+  value     String
+  label     String
+  icon      String?
+  sortOrder Int                    @default(0)
+  isActive  Boolean                @default(true)
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  @@unique([category, value])
+  @@index([category, isActive])
+}
+
+model MemorialWishlist {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  funeralType     String?
+  serviceType     String?
+  dressCode       String?
+  locationType    String?
+  additionalNotes String?
+  insuranceLinked Boolean  @default(false)
+  metadata        Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model UserCatalogSelection {
+  id            String               @id @default(cuid())
+  userId        String
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  catalogType   CatalogSelectionType
+  catalogItemId String
+  notes         String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  funeralHomeId      String?
+  funeralHome        FuneralHome?       @relation(fields: [funeralHomeId], references: [id], onDelete: SetNull)
+  cemeteryId         String?
+  cemetery           Cemetery?          @relation(fields: [cemeteryId], references: [id], onDelete: SetNull)
+  churchId           String?
+  church             Church?            @relation(fields: [churchId], references: [id], onDelete: SetNull)
+  flowerId           String?
+  flower             FlowerArrangement? @relation(fields: [flowerId], references: [id], onDelete: SetNull)
+  casketId           String?
+  casket             CasketDesign?      @relation(fields: [casketId], references: [id], onDelete: SetNull)
+  urnId              String?
+  urn                CremationUrn?      @relation(fields: [urnId], references: [id], onDelete: SetNull)
+  musicId            String?
+  music              FuneralMusic?      @relation(fields: [musicId], references: [id], onDelete: SetNull)
+  obituaryTemplateId String?
+  obituaryTemplate   ObituaryTemplate?  @relation(fields: [obituaryTemplateId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, catalogType])
+  @@index([userId])
+}
+
+// =============================================================================
+// FUNERAL CATALOG (admin-managed, mobile consumes)
+// =============================================================================
+
+model FuneralHome {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  city      String
+  state     String
+  zipCode   String
+  phone     String
+  email     String?
+  website   String?
+  services  String[] @default([])
+  hours     Json?
+  rating    Decimal? @db.Decimal(3, 2)
+  imageUrl  String?
+  isActive  Boolean  @default(true)
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  selections UserCatalogSelection[]
+
+  @@index([city, state])
+  @@index([isActive])
+}
+
+model Cemetery {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  city        String
+  state       String
+  zipCode     String
+  phone       String?
+  email       String?
+  website     String?
+  plotPricing Decimal? @db.Decimal(12, 2)
+  services    String[] @default([])
+  isActive    Boolean  @default(true)
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  selections UserCatalogSelection[]
+
+  @@index([city, state])
+}
+
+model Church {
+  id           String   @id @default(cuid())
+  name         String
+  address      String?
+  city         String?
+  state        String?
+  denomination String?
+  phone        String?
+  website      String?
+  imageUrl     String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  selections UserCatalogSelection[]
+}
+
+model FlowerArrangement {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  priceFrom   Decimal? @db.Decimal(12, 2)
+  priceTo     Decimal? @db.Decimal(12, 2)
+  imageUrl    String?
+  tags        String[] @default([])
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  selections UserCatalogSelection[]
+}
+
+model CasketDesign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  material    String?
+  price       Decimal? @db.Decimal(12, 2)
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  selections UserCatalogSelection[]
+}
+
+model CremationUrn {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  material    String?
+  price       Decimal? @db.Decimal(12, 2)
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  selections UserCatalogSelection[]
+}
+
+model FuneralMusic {
+  id           String        @id @default(cuid())
+  title        String
+  artist       String
+  composer     String?
+  duration     String?
+  genre        String?
+  category     MusicCategory
+  audioUrl     String?
+  moodTags     String[]      @default([])
+  activityTags String[]      @default([])
+  downloads    Int           @default(0)
+  featured     Boolean       @default(false)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  userPicks  UserFuneralMusic[]
+  selections UserCatalogSelection[]
+
+  @@index([category])
+  @@index([featured])
+}
+
+model UserFuneralMusic {
+  id        String       @id @default(cuid())
+  userId    String
+  musicId   String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  music     FuneralMusic @relation(fields: [musicId], references: [id], onDelete: Cascade)
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+
+  @@unique([userId, musicId])
+}
+
+model ObituaryTemplate {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  selections UserCatalogSelection[]
+  obituaries Obituary[]
+}
+
+model Obituary {
+  id           String            @id @default(cuid())
+  userId       String
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templateId   String?
+  template     ObituaryTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  title        String
+  content      String
+  deceasedName String?
+  status       ContentStatus     @default(DRAFT)
+  publishedAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([userId])
+}
+
+model VideoMessage {
+  id           String             @id @default(cuid())
+  userId       String
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String
+  deceasedName String?
+  videoUrl     String?
+  thumbnailUrl String?
+  duration     String?
+  fileSize     Int?
+  views        Int                @default(0)
+  status       VideoMessageStatus @default(UPLOADED)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model CascadeDesign {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  previewUrl  String?
+  config      Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// =============================================================================
+// PRODUCTS & PRODUCT WISHLIST (marketplace — distinct from memorial wishlist)
+// =============================================================================
+
+model Product {
+  id          String        @id @default(cuid())
+  name        String
+  description String?
+  price       Decimal       @db.Decimal(12, 2)
+  currency    String        @default("USD")
+  imageUrl    String?
+  category    String?
+  stock       Int           @default(0)
+  status      ProductStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  wishlistItems ProductWishlistItem[]
+
+  @@index([status])
+  @@index([category])
+}
+
+model ProductWishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+}
+
+// =============================================================================
+// WALLET & GIFTS
+// =============================================================================
+
+model Wallet {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Decimal  @default(0) @db.Decimal(12, 2)
+  currency  String   @default("USD")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions WalletTransaction[]
+}
+
+model WalletTransaction {
+  id          String                  @id @default(cuid())
+  walletId    String
+  wallet      Wallet                  @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type        WalletTransactionType
+  status      WalletTransactionStatus @default(PENDING)
+  amount      Decimal                 @db.Decimal(12, 2)
+  currency    String                  @default("USD")
+  description String?
+  referenceId String?
+  metadata    Json?
+  createdAt   DateTime                @default(now())
+
+  @@index([walletId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model Gift {
+  id          String   @id @default(cuid())
+  senderId    String
+  recipientId String
+  sender      User     @relation("GiftSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("GiftRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  amount      Decimal  @db.Decimal(12, 2)
+  currency    String   @default("USD")
+  message     String?
+  createdAt   DateTime @default(now())
+
+  @@index([senderId])
+  @@index([recipientId])
+}
+
+// =============================================================================
+// TRUSTED CONTACTS & MESSAGING
+// =============================================================================
+
+model TrustedContact {
+  id            String               @id @default(cuid())
+  ownerId       String
+  contactUserId String?
+  owner         User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  contactUser   User?                @relation("TrustedContactUser", fields: [contactUserId], references: [id], onDelete: SetNull)
+  name          String
+  email         String
+  phone         String?
+  relationship  String?
+  status        TrustedContactStatus @default(PENDING)
+  verifiedAt    DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([ownerId])
+  @@index([email])
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  userId         String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastReadAt     DateTime?
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  senderId       String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  body           String
+  attachmentUrl  String?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+  @@index([senderId])
+}
+
+// =============================================================================
+// LEGAL, DIGITAL LEGACY, FAQ, FEEDBACK, REPORTS
+// =============================================================================
+
+model LegalDocument {
+  id          String            @id @default(cuid())
+  type        LegalDocumentType
+  title       String
+  content     String
+  version     String            @default("1.0")
+  isActive    Boolean           @default(true)
+  publishedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([type, isActive])
+}
+
+model DigitalLegacyAsset {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        DigitalLegacyType
+  title       String
+  url         String
+  description String?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+
+  @@index([userId])
+}
+
+model Faq {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  category  String?
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category, isActive])
+}
+
+model Feedback {
+  id        String         @id @default(cuid())
+  userId    String?
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  email     String?
+  subject   String
+  message   String
+  status    FeedbackStatus @default(NEW)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([status])
+}
+
+model Report {
+  id           String           @id @default(cuid())
+  reporterId   String
+  reporter     User             @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType   ReportTargetType
+  targetId     String
+  reason       String
+  details      String?
+  status       ReportStatus     @default(OPEN)
+  resolvedById String?
+  resolvedBy   AdminUser?       @relation("ReportResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedAt   DateTime?
+  postId       String?
+  post         Post?            @relation(fields: [postId], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([status])
+  @@index([targetType, targetId])
+}
+
+// =============================================================================
+// CMS & APP SETTINGS (admin controls mobile UI/UX)
+// =============================================================================
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model AppTheme {
+  id           String   @id @default(cuid())
+  name         String   @default("default")
+  primaryColor String
+  accentColor  String?
+  logoUrl      String?
+  logoDarkUrl  String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AppCopy {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  locale    String   @default("en")
+  updatedAt DateTime @updatedAt
+
+  @@index([locale])
+}
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  enabled     Boolean  @default(false)
+  description String?
+  metadata    Json?
+  updatedAt   DateTime @updatedAt
+}
+
+// =============================================================================
+// NOTIFICATIONS
+// =============================================================================
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+}
