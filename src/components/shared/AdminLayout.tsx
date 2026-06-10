@@ -6,6 +6,7 @@ import { Sidebar, type NavItem } from "./Sidebar"
 import { Header } from "./Header"
 import { AdminLoader } from "./AdminLoader"
 import { AdminRouteProgress } from "./AdminRouteProgress"
+import { ADMIN_LOADER_DURATION_MS } from "./admin-loader-constants"
 import { Toaster } from "react-hot-toast"
 import { useTheme } from "@/lib/theme-context"
 
@@ -21,7 +22,7 @@ import {
   BookHeart, Archive, Building2, Newspaper, Video, Music, 
   MessageSquare, Handshake, FileText, FileJson, 
   Palette, HelpCircle, MessageCircle, ShieldAlert, Settings, 
-  Lock, Link as LinkIcon 
+  Lock, Link as LinkIcon, LogOut, SlidersHorizontal
 } from "lucide-react"
 
 const defaultNavItems: NavItem[] = [
@@ -49,10 +50,11 @@ const defaultNavItems: NavItem[] = [
     href: "/admin/settings",
     icon: <Settings size={20} />,
     children: [
-      { label: "General", href: "/admin/settings/general", icon: <Settings size={18} /> },
+      { label: "General", href: "/admin/settings/general", icon: <SlidersHorizontal size={18} /> },
       { label: "Security", href: "/admin/settings/security", icon: <Lock size={18} /> },
       { label: "Integrations", href: "/admin/settings/integrations", icon: <LinkIcon size={18} /> },
       { label: "Safety", href: "/admin/settings/safety", icon: <ShieldAlert size={18} /> },
+      { label: "Log out", href: "#", icon: <LogOut size={18} />, action: "logout" },
     ],
   },
 ]
@@ -66,15 +68,24 @@ export const AdminLayout = ({
   headerTitle,
   headerRightContent,
 }: AdminLayoutProps) => {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const { theme } = useTheme()
-  const [mounted, setMounted] = useState(false)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
+    const mq = window.matchMedia("(min-width: 768px)")
+    const syncSidebar = () => setSidebarOpen(mq.matches)
+    syncSidebar()
+    mq.addEventListener("change", syncSidebar)
+
+    const readyTimer = window.setTimeout(() => setReady(true), ADMIN_LOADER_DURATION_MS)
+    return () => {
+      mq.removeEventListener("change", syncSidebar)
+      window.clearTimeout(readyTimer)
+    }
   }, [])
 
-  if (!mounted) {
+  if (!ready) {
     return <AdminLoader variant="fullscreen" label="Loading admin panel..." />
   }
 
@@ -108,14 +119,15 @@ export const AdminLayout = ({
             theme === "dark" ? "bg-slate-900" : "bg-gray-50",
           )}
         >
-          <AdminRouteProgress />
-          <AnimatePresence mode="wait">
-            <div className="px-4 md:px-8 py-6">
-              <Suspense fallback={<AdminLoader variant="page" label="Loading content..." />}>
-                {children}
-              </Suspense>
-            </div>
-          </AnimatePresence>
+          <AdminRouteProgress>
+            <AnimatePresence mode="wait">
+              <div className="px-4 md:px-8 py-6">
+                <Suspense fallback={<AdminLoader variant="minimal" label="Loading content..." />}>
+                  {children}
+                </Suspense>
+              </div>
+            </AnimatePresence>
+          </AdminRouteProgress>
         </main>
       </div>
 

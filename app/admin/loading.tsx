@@ -1,5 +1,5 @@
-import { AdminLoader } from "@/src/components/shared/AdminLoader"
+import { AdminLoadingClient } from "@/src/components/shared/AdminLoadingClient"
 
 export default function AdminLoading() {
-  return <AdminLoader variant="page" label="Loading page..." />
+  return <AdminLoadingClient label="Loading page..." />
 }

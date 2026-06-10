@@ -2,7 +2,20 @@
 
 import { motion } from "framer-motion"
 import { useTheme } from "@/lib/theme-context"
-import { Edit2, Trash2, Plus, Search, Calendar, Eye, User, FileText, X } from "lucide-react"
+import {
+  Edit2,
+  Trash2,
+  Plus,
+  Search,
+  Calendar,
+  Eye,
+  User,
+  FileText,
+  X,
+  Star,
+  Archive,
+  CheckCircle2,
+} from "lucide-react"
 import { useEffect, useState } from "react"
 import toast from "react-hot-toast"
 
@@ -56,6 +69,79 @@ const labelClass = (theme: string) =>
 function truncateContent(text: string, max = 120) {
   if (text.length <= max) return text
   return `${text.slice(0, max).trim()}…`
+}
+
+function statusBadgeClass(
+  theme: string,
+  status: Obituary["status"],
+) {
+  const base = "inline-flex items-center px-2.5 py-0.5 text-xs font-semibold rounded-full border"
+  if (status === "published") {
+    return cn(
+      base,
+      theme === "dark"
+        ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/35"
+        : "bg-emerald-50 text-emerald-700 border-emerald-200",
+    )
+  }
+  if (status === "draft") {
+    return cn(
+      base,
+      theme === "dark"
+        ? "bg-amber-500/15 text-amber-300 border-amber-500/35"
+        : "bg-amber-50 text-amber-700 border-amber-200",
+    )
+  }
+  return cn(
+    base,
+    theme === "dark"
+      ? "bg-slate-500/20 text-slate-300 border-slate-500/35"
+      : "bg-slate-100 text-slate-600 border-slate-200",
+  )
+}
+
+function featuredBadgeClass(theme: string) {
+  return cn(
+    "inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-semibold rounded-full border",
+    theme === "dark"
+      ? "bg-amber-500/15 text-amber-300 border-amber-500/35"
+      : "bg-amber-50 text-amber-700 border-amber-200",
+  )
+}
+
+function actionBtnClass(theme: string, variant: "publish" | "feature" | "featureActive" | "archive") {
+  const base =
+    "inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors"
+  if (variant === "publish") {
+    return cn(
+      base,
+      theme === "dark"
+        ? "bg-emerald-600/90 text-white border-emerald-500 hover:bg-emerald-500"
+        : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700",
+    )
+  }
+  if (variant === "featureActive") {
+    return cn(
+      base,
+      theme === "dark"
+        ? "bg-amber-500/20 text-amber-300 border-amber-400/50 hover:bg-amber-500/30"
+        : "bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200",
+    )
+  }
+  if (variant === "feature") {
+    return cn(
+      base,
+      theme === "dark"
+        ? "bg-transparent text-slate-300 border-slate-600 hover:bg-slate-700/50 hover:border-slate-500"
+        : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:border-slate-300",
+    )
+  }
+  return cn(
+    base,
+    theme === "dark"
+      ? "bg-slate-700/50 text-slate-200 border-slate-600 hover:bg-slate-700 hover:border-slate-500"
+      : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200",
+  )
 }
 
 // Mock Data
@@ -399,17 +485,13 @@ export default function ObituariesPage() {
                       {obit.deceasedName}
                     </p>
                   </div>
-                  {obit.featured && <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-semibold rounded">Featured</span>}
-                  <span
-                    className={cn(
-                      "px-2 py-1 text-xs font-semibold rounded",
-                      obit.status === "published"
-                        ? "bg-green-100 text-green-800"
-                        : obit.status === "draft"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-gray-100 text-gray-800",
-                    )}
-                  >
+                  {obit.featured && (
+                    <span className={featuredBadgeClass(theme)}>
+                      <Star size={12} className="fill-current" />
+                      Featured
+                    </span>
+                  )}
+                  <span className={statusBadgeClass(theme, obit.status)}>
                     {obit.status.charAt(0).toUpperCase() + obit.status.slice(1)}
                   </span>
                 </div>
@@ -429,44 +511,74 @@ export default function ObituariesPage() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
                 {obit.status === "draft" && (
                   <motion.button
-                    whileHover={{ scale: 1.05 }}
+                    type="button"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => handlePublish(obit.id)}
-                    className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                    className={actionBtnClass(theme, "publish")}
                   >
+                    <CheckCircle2 size={14} />
                     Publish
                   </motion.button>
                 )}
                 {obit.status === "published" && (
                   <>
                     <motion.button
-                      whileHover={{ scale: 1.05 }}
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => handleToggleFeatured(obit.id)}
-                      className={cn(
-                        "px-3 py-1 text-sm rounded transition-colors",
-                        obit.featured
-                          ? "bg-yellow-600 text-white hover:bg-yellow-700"
-                          : "bg-gray-300 text-gray-800 hover:bg-gray-400",
+                      className={actionBtnClass(
+                        theme,
+                        obit.featured ? "featureActive" : "feature",
                       )}
                     >
-                      {obit.featured ? "★ Featured" : "☆ Feature"}
+                      <Star
+                        size={14}
+                        className={obit.featured ? "fill-current" : undefined}
+                      />
+                      {obit.featured ? "Featured" : "Feature"}
                     </motion.button>
                     <motion.button
-                      whileHover={{ scale: 1.05 }}
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => handleArchive(obit.id)}
-                      className="px-3 py-1 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors"
+                      className={actionBtnClass(theme, "archive")}
                     >
+                      <Archive size={14} />
                       Archive
                     </motion.button>
                   </>
                 )}
-                <motion.button whileHover={{ scale: 1.05 }} onClick={() => handleEdit(obit)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 rounded">
-                  <Edit2 size={18} />
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => handleEdit(obit)}
+                  className={cn(
+                    "p-2 rounded-lg border transition-colors",
+                    theme === "dark"
+                      ? "text-blue-400 border-slate-600 hover:bg-slate-700"
+                      : "text-blue-600 border-slate-200 hover:bg-blue-50",
+                  )}
+                >
+                  <Edit2 size={16} />
                 </motion.button>
-                <motion.button whileHover={{ scale: 1.05 }} onClick={() => handleDelete(obit.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-slate-700 rounded">
-                  <Trash2 size={18} />
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  onClick={() => handleDelete(obit.id)}
+                  className={cn(
+                    "p-2 rounded-lg border transition-colors",
+                    theme === "dark"
+                      ? "text-red-400 border-slate-600 hover:bg-red-500/10"
+                      : "text-red-600 border-slate-200 hover:bg-red-50",
+                  )}
+                >
+                  <Trash2 size={16} />
                 </motion.button>
               </div>
             </div>

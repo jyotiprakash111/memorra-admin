@@ -6,10 +6,9 @@ import { useEffect, useState } from "react"
 const cn = (...classes: (string | boolean | undefined)[]) =>
   classes.filter(Boolean).join(" ")
 
-export type AdminLoaderVariant = "fullscreen" | "page" | "inline"
+export type AdminLoaderVariant = "fullscreen" | "page" | "minimal" | "inline"
 
 export interface AdminLoaderProps {
-  /** fullscreen = initial app mount; page = route/content area; inline = compact */
   variant?: AdminLoaderVariant
   label?: string
   className?: string
@@ -32,57 +31,27 @@ function useResolvedTheme() {
   return theme
 }
 
-function Spinner({ size = 48, theme }: { size?: number; theme: "light" | "dark" }) {
+function Spinner({ size = 40, theme }: { size?: number; theme: "light" | "dark" }) {
   return (
-    <div className="relative" style={{ width: size, height: size }}>
-      <motion.div
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: size, height: size }}
+      aria-hidden
+    >
+      <div
         className={cn(
-          "absolute inset-0 rounded-full border-2",
-          theme === "dark" ? "border-slate-600" : "border-gray-200",
+          "absolute inset-0 rounded-full animate-spin",
+          theme === "dark"
+            ? "border-[3px] border-slate-700 border-t-green-500"
+            : "border-[3px] border-gray-200 border-t-green-600",
         )}
       />
-      <motion.div
-        className="absolute inset-0 rounded-full border-2 border-transparent border-t-green-500 border-r-green-500"
-        animate={{ rotate: 360 }}
-        transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-      />
-      <motion.div
-        className="absolute inset-[22%] rounded-full bg-green-500/20"
-        animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.9, 0.5] }}
-        transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-      />
-    </div>
-  )
-}
-
-function SkeletonBlocks({ theme }: { theme: "light" | "dark" }) {
-  const bar = theme === "dark" ? "bg-slate-700/80" : "bg-gray-200"
-  return (
-    <div className="w-full max-w-3xl mt-10 space-y-4 px-4">
-      <motion.div
-        className={cn("h-8 rounded-lg w-2/5", bar)}
-        animate={{ opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 1.4, repeat: Infinity }}
-      />
-      <motion.div
-        className={cn("h-4 rounded-lg w-4/5", bar)}
-        animate={{ opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 1.4, repeat: Infinity, delay: 0.1 }}
-      />
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-        {[0, 1, 2].map((i) => (
-          <motion.div
-            key={i}
-            className={cn("h-20 rounded-xl", bar)}
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 1.4, repeat: Infinity, delay: 0.15 * (i + 1) }}
-          />
-        ))}
-      </div>
-      <motion.div
-        className={cn("h-32 rounded-xl", bar)}
-        animate={{ opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 1.4, repeat: Infinity, delay: 0.5 }}
+      <div
+        className={cn(
+          "rounded-full",
+          theme === "dark" ? "bg-green-500/25" : "bg-green-500/15",
+        )}
+        style={{ width: size * 0.35, height: size * 0.35 }}
       />
     </div>
   )
@@ -112,49 +81,65 @@ export function AdminLoader({
     )
   }
 
-  const containerClass =
-    variant === "fullscreen"
-      ? cn(
+  if (variant === "minimal") {
+    return (
+      <div
+        className={cn("flex flex-col items-center justify-center py-16", className)}
+        role="status"
+        aria-live="polite"
+        aria-label={label}
+      >
+        <Spinner size={36} theme={theme} />
+        <p className={cn("mt-4 text-sm font-medium", isDark ? "text-slate-400" : "text-gray-500")}>
+          {label}
+        </p>
+      </div>
+    )
+  }
+
+  if (variant === "fullscreen") {
+    return (
+      <div
+        className={cn(
           "fixed inset-0 z-[100] flex flex-col items-center justify-center",
           isDark ? "bg-slate-900" : "bg-gray-50",
           className,
-        )
-      : cn(
-          "flex flex-col items-center justify-center w-full min-h-[min(70vh,560px)] py-16",
-          className,
-        )
-
-  return (
-    <div className={containerClass} role="status" aria-live="polite" aria-label={label}>
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="flex flex-col items-center"
+        )}
+        role="status"
+        aria-live="polite"
+        aria-label={label}
       >
-        <Spinner size={variant === "fullscreen" ? 56 : 48} theme={theme} />
-        <motion.p
-          className={cn(
-            "mt-6 text-lg font-bold tracking-tight",
-            isDark ? "text-white" : "text-gray-900",
-          )}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.15 }}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.25 }}
+          className="flex flex-col items-center"
         >
-          Memorra
-        </motion.p>
-        <motion.p
-          className={cn("mt-1 text-sm", isDark ? "text-slate-400" : "text-gray-500")}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.25 }}
-        >
-          {label}
-        </motion.p>
-      </motion.div>
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-green-500 to-green-600 shadow-lg shadow-green-500/20">
+            <span className="text-xl font-bold text-white">M</span>
+          </div>
+          <Spinner size={44} theme={theme} />
+          <p className={cn("mt-5 text-sm", isDark ? "text-slate-400" : "text-gray-500")}>{label}</p>
+        </motion.div>
+      </div>
+    )
+  }
 
-      {variant === "page" && <SkeletonBlocks theme={theme} />}
+  // page — content-area placeholder, no branding duplicate
+  return (
+    <div
+      className={cn(
+        "flex w-full flex-col items-center justify-center py-20",
+        className,
+      )}
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+    >
+      <Spinner size={40} theme={theme} />
+      <p className={cn("mt-4 text-sm font-medium", isDark ? "text-slate-400" : "text-gray-500")}>
+        {label}
+      </p>
     </div>
   )
 }
